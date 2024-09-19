@@ -1,0 +1,138 @@
+---
+title: "KJ ADA Class 1 Lab"
+author: "MARIAM BALOGUN"
+date: "2024-08-29"
+output: html_document
+---
+1. Import class one survey data from our Github site (https://github.com/kijohnson/ADA-2024) (The dataset is called ‘Class 1 Survey Fall 2024_di.csv’), calling the R dataframe that you create C1survey.
+```{r}
+#Load packages
+pacman::p_load(haven, readr, dplyr, openxlsx)
+
+#import file 
+C1survey <- read.csv("https://raw.githubusercontent.com/kijohnson/ADA-2024/main/Class%201%20(Getting%20started%20and%20RR%20I)/Lab/Class%201%20Survey%20Fall%202024_di.csv")
+```
+
+2. Determine: a. the number of observations (i.e. the number of people who filled out the survey) and b. the number of variables in the dataframe.
+```{r}
+#use the view function
+#view(C1survey)
+
+#or use this code: dim(C1survey)
+
+#2a. there are 29 people who filled out the survey
+#2b. There are 27 variables in the dataframe - C1survey (including the ID column)
+```
+
+3. a. Rename the column variables to something shorter and that is descriptive of what the variable is about (for example like_dogs for the ‘Do you like dogs?’ question variable) and b. Display that they are renamed.
+```{r}
+ #first, show the variable names
+colnames(C1survey)
+
+#then,rename variables in order of appearance
+names(C1survey)[2:27] <- c("like_cats", "like_dogs", "stranded_in_desert", "slogan_for_life", "favorite_day", "lark_owl_hummingbird", "favorite_food", "favorite_drink", "favorite_season", "favorite_month", "hobby", "degree_program", "primary_specialization", "primary_software", "level_R_experience", "comfortable_with_coding", "length_of_coding", "things_to_learn", "area_of_interest", "favorite_number", "birth_day", "birth_month", "home_country", "home_state_province", "home_city", "highest_level_education") 
+
+#***you can use the dplyr package for this 
+
+#display to confirm
+ colnames(C1survey)
+```
+
+4. Write code to determine and display the number of factor, integer, numerical, and character variables there are in the C1survey dataset.
+```{r}
+#using the summary function
+summary(C1survey)
+ #or use this sapply function
+table(sapply(C1survey, class))
+
+
+#Ans: there are 23 character variables and 4 integers
+```
+
+5. a. Using code, check the bday and bmonth variables for any unusual or missing values. If you find any, b. describe what you will do with the unusual values in a comment before or immediately following the code that does it, and c. after you have cleaned up any unusual values, find the median bday and month. *Note: please make sure that your bday and month variables are numeric before doing statistics
+
+```{r}
+#5a Using code, check variables bday and bmonth
+print(C1survey$birth_day)
+print(C1survey$birth_month)
+
+#b. recode with all non numeric values
+class(C1survey$birth_day) #check that it is coded as character class
+C1survey$birth_day<-ifelse(C1survey$birth_day == "May 21-report 21", "21", C1survey$birth_day)
+C1survey$birth_day<-ifelse(C1survey$birth_day == "March 31st", "31", C1survey$birth_day)
+
+C1survey$birth_day #Check values
+
+#convert to numeric for statistics
+C1survey$birth_day<-as.numeric(C1survey$birth_day)
+
+#now recode for birth_month
+class(C1survey$birth_month)  #check that it is coded as character class
+print(C1survey$birth_month)
+
+C1survey$birth_month[C1survey$birth_month== "May 21-report 5"]<-"5"
+C1survey$birth_month[C1survey$birth_month== "February"]<-"2"
+C1survey$birth_month[C1survey$birth_month== "September "]<-"9" 
+C1survey$birth_month[C1survey$birth_month== "July"]<-"7"
+C1survey$birth_month[C1survey$birth_month== "March"]<-"3"
+
+C1survey$birth_month #check values
+
+#5c. calculate medians for birth_day and birth_month
+median(C1survey$birth_day, na.rm = TRUE) #ANSWER IS 14
+median(C1survey$birth_month, na.rm = TRUE) #ANSWER IS 7
+
+```
+
+6. a. Create a new variable called bseason that gives the season according to Northern Meteorological season in which respondents were born (winter = 12/1 to 2/29, spring = 3/1 to 5/31, summer = 6/1 to 8/31, fall = 9/1 to 11/30). b. Using the table function, print a table of Seasons in the columns and bmonths in the rows that allows you to check that the coding is correct c. Sum the columns using the addmargins function to answer the question of how many classmates were born in each season? Include your answer in the code.
+
+```{r}
+#6A. create a new variable
+C1survey<- C1survey %>%
+  mutate(bseason=case_when(birth_month %in% c(12,1,2) ~ "Winter",
+                           birth_month %in% c(3,4,5) ~ "Spring",
+                           birth_month %in% c(6,7,8) ~ "Summer",
+                           birth_month %in% c(9,10,11) ~ "Fall"))
+C1survey$bseason 
+
+C1survey$bseason_f<- factor(C1survey$bseason, levels = c("Winter", "Spring", "Summer", "Fall"))
+
+
+#6B. print a table of Seasons
+table(C1survey$birth_month, C1survey$bseason)
+
+#6C. using the addmargins function
+tab<- addmargins(table(C1survey$birth_month, C1survey$bseason), 1)
+tab
+
+#ANSWER: SUM OF BIRTHS PER SEASON - Spring = 9, Fall = 4, Summer = 8 and Winter = 8
+```
+ 
+7. Pick your favorite variable or variables to analyze, come up with a question you want to answer with that variable or variables, generate the code, and provide an answer to your question. Describe what you did using comments (i.e. #’s).
+
+```{r}
+#Variables to analyse: lark_owl_hummingbird, like_dogs, and like_cats
+
+#Question I would like to answer with these variables: What is the pet preference (either cats, dogs, both or neither) between the larks, owls and hummingbirds?
+
+#first create a combined pet prefernce variable
+C1survey <- C1survey %>%
+  mutate(pet_preference = case_when(
+    like_dogs == "Yes" & like_cats == "Yes" ~ "Both",
+    like_dogs == "Yes" & like_cats == "No" ~ "Dogs",
+    like_dogs == "No" & like_cats == "Yes" ~ "Cats",
+    TRUE ~ "Neither"))
+
+pet_pref_table <- table(C1survey$pet_preference) #create a table for the new pet_preference variable
+
+pet_pref_table #view the table 
+
+class(C1survey$pet_preference) #check this class of the new variable
+
+#Next: create a table exploring both pet_preference and lark_owl_hummingbird
+contingency_table <- table(C1survey$pet_preference, C1survey$lark_owl_hummingbird)
+
+contingency_table #view the table to know the pet preferences
+```
+
+ 
