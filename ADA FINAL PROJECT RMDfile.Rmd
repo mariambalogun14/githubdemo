@@ -1,0 +1,301 @@
+---
+title: "ADA Final Project"
+author: "MARIAM BALOGUN"
+date: "2024-11-23"
+output: pdf_document
+---
+
+#TITLE OF PROJECT
+The Association between Educational Attainment and Chronic Conditions (like Diabetes and Hypertension) among Medicare Beneficiaries: a cross-sectional study.
+
+-Objectives of Study
+a.	Primary: To determine if education level is associated with the prevalence of diabetes and hypertension among 2022 Medicare beneficiaries
+b.	Secondary: To determine if this association differs by gender and across races
+
+-Description of dataset & Study population
+Data used is the Medicare Health Outcomes Survey (HOS) Research Data File, year 2022 Baseline Cohort. Data is publicly available at: https://www.hosonline.org/en/data-dissemination/research-data-files/
+A random sample of 1,013,279 beneficiaries, including the aged and disabled. Of those sampled, 280,261 (27.7%) completed the survey and were included in the CSV data file
+
+# Install packages and open libraries
+```{r}
+pacman::p_load(ggplot2, car, odds.n.ends, readr, dplyr, tidyverse, table1, DiagrammeR, rsvg)
+```
+
+# Import data for this project
+```{r}
+#Import file
+FinalProjectData <- read.csv("/Users/mac/Desktop/MASTERS AT BROWN SCHOOL/FALL 2024 - ADVANCED DATA ANALYTICS/Medicare HOS DATA.csv")
+
+#view file
+dim(FinalProjectData) #Dataset has 81 variables and 280261 observations
+
+```
+
+# Data Management
+```{r}
+# Check the dataset's structure and summary
+str(FinalProjectData)
+summary(FinalProjectData)
+
+#Rename the diabetes and hypertension status column names
+FinalProjectData <- FinalProjectData %>%
+  rename(
+    diab_stat = B25ccdiabet,     #'B25ccdiabet' to 'diab_stat'
+    hyprtnsn_stat = B25cchbp)    #'B25cchbp' to 'hyprtnsn_stat')
+
+# Check the updated column names
+colnames(FinalProjectData)
+
+# Recode variables into categorical factors
+FinalProjectData <- FinalProjectData %>%
+  mutate(
+    EDUC = factor(EDUC, 
+                  levels = c(1, 2, 3), 
+                  labels = c("Less than HS", "HS/GED", "More than HS")),
+    RACE = factor(RACE, 
+                  levels = c(1, 2, 3), 
+                  labels = c("White", "Black or African American", "Other")),
+    GENDER = factor(GENDER, 
+                    levels = c(1, 2), 
+                    labels = c("Male", "Female")),
+    diab_stat = factor(diab_stat, 
+                       levels = c(1, 2), 
+                       labels = c("Yes", "No")),
+    hyprtnsn_stat = factor(hyprtnsn_stat, 
+                           levels = c(1, 2), 
+                           labels = c("Yes", "No")),
+    MARITL = factor(MARITL, 
+                    levels = c(1, 2), 
+                    labels = c("Married", "Non-Married")),
+    AGE = factor(AGE,
+                 levels = c(1, 2, 3),
+                 labels = c("Under 65", "65-74", "75 and older")))
+
+
+# Select only the needed variables for the project from the dataset
+FinalProjectData <- FinalProjectData %>%
+  select(CASE_ID, AGE, RACE, GENDER, EDUC, MARITL, diab_stat, hyprtnsn_stat)
+
+```
+
+
+# Handling missing data
+```{r, eval = FALSE}
+#Since this project is assuming that data are missing completely at random, we would do a complete case analysis to remove missing data from each of the variables
+
+#summary of each variable in the dataframe to determine how much missing data there is 
+summary(FinalProjectData)
+
+#Drop missing data from each variable
+FinalProjectData1 <- FinalProjectData %>%
+  drop_na(diab_stat)   #260739 observations left after dropping NAs in diab_stat
+
+FinalProjectData2 <- FinalProjectData1 %>%
+ drop_na(hyprtnsn_stat) #259038 observations left after dropping NAs in hyprtnsn_stat
+
+FinalProjectData3 <- FinalProjectData2 %>%
+  drop_na(EDUC)  #249120 observations left after dropping NAs from EDUC
+
+FinalProjectData4 <- FinalProjectData3 %>%
+  drop_na(CASE_ID, AGE, RACE, GENDER,MARITL) #drop NAs in other variables
+
+view(FinalProjectData4) #Dataset now has 234,871 observations
+
+```
+
+
+#Create a Figure 1 Diagram showing a flowchart of how sample size was gotten
+```{r}
+grViz(diagram = "digraph flowchart{
+
+      node [fontname = Helvetica, shape = rectangle, fontsize=15] 
+      
+      node1 [label = '@@1'] # starting number
+      node2 [label = '@@2'] # number after exclusion 1
+      node3 [label = '@@3'] # number after exclusion 2
+      node4 [label = '@@4'] # number after exclusion 3
+      node5 [label = '@@5'] # number after exclusion 4
+      
+      node1 -> node2 -> node3 -> node4 -> node5
+}
+      [1]: 'Number of paricipants in dataset n = 280,261'
+      [2]: 'Excluding 19,522 with NAs on diabetes status variable n = 260,739'
+      [3]: 'Excluding 1,701 with NAs data on hypertension status variable n = 259,038'
+      [4]: 'Excluding 9,918 with NAs on educational level variable n = 249,120'
+     [5]: 'Excluding 14,249 with NAs on other variables n = 234,871' ")
+```
+
+# Create a Table 1 that show demographics of the participants
+```{r}
+#Since this project is exploring two outcome variables (diabetes and hypertension status) in the participants, we shall present a Table 1 showing the demographics of participants with these combined outcomes as a way of exploring how the co-occurrence of the conditions impacts demographics.
+
+# Create combined outcome variable
+FinalProjectData4 <- FinalProjectData4 %>%
+  mutate(
+    combined_outcome = case_when(
+      diab_stat == "Yes" & hyprtnsn_stat == "Yes" ~ "Both",
+      diab_stat == "Yes" & hyprtnsn_stat == "No" ~ "Diabetes Only",
+      diab_stat == "No" & hyprtnsn_stat == "Yes" ~ "Hypertension Only",
+      diab_stat == "No" & hyprtnsn_stat == "No" ~ "Neither"
+    ) %>%
+      factor(levels = c("Both", "Diabetes Only", "Hypertension Only", "Neither")))
+
+# Create Table 1 for combined outcomes
+knitr::kable(table1(~ AGE + RACE + GENDER + EDUC + MARITL |combined_outcome, FinalProjectData4)) 
+
+```
+
+
+# Figure 2: Descriptives Bar Chart of variables
+```{r}
+# Summarize data for plotting
+plot_data <- FinalProjectData4 %>%
+  group_by(EDUC) %>%
+  summarize(diabetes_count = sum(diab_stat == "Yes"))
+
+plot_data2 <- FinalProjectData4 %>%
+  group_by(EDUC) %>%
+  summarize(hypertension_count = sum(hyprtnsn_stat == "Yes"))
+
+
+
+# Generating the car charts for each outcome
+ggplot(plot_data, aes(x = EDUC, y = diabetes_count, fill = EDUC)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Number of those with Diabetes grouped by Education Level",
+       x = "Education Level",
+       y = "Count") + theme_minimal()
+
+ggplot(plot_data2, aes(x = EDUC, y = hypertension_count, fill = EDUC)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Number of those with Hypertension grouped by Education Level",
+    x = "Education Level",
+    y = "Count" ) + theme_minimal() 
+
+
+```
+
+
+# Testing for assumptions: Multicollinearity
+```{r}
+# We will use the Variance Inflation Factor (VIF) to ensure that no multicollinearity exists among our predictors.
+
+model_hyp <- glm(hyprtnsn_stat~ EDUC + AGE + RACE + GENDER + MARITL, 
+             data = FinalProjectData4, 
+             family = binomial)
+
+model_diab <- glm(diab_stat~ EDUC + AGE + RACE + GENDER + MARITL, 
+             data = FinalProjectData4, 
+             family = binomial)
+
+# Calculate VIF
+vif(model_hyp)
+vif(model_diab)
+
+#RESULT: For each of the outcome variables (diab_stat and hyprtnsn_stat), their models show no multicollinearity exists among the predictors
+```
+RESULT: 
+For each of the outcome variables (diab_stat and hyprtnsn_stat), their models show no multicollinearity exists among the predictors
+
+#Fitting Logistics Regression model for the outcomes
+
+Hypotheses
+• H0: The probability of having Chronic conditions like Diabetes or hypertension is not associated with Educational level.
+• Ha: The probability of having Chronic conditions like Diabetes or hypertension is associated with Educational level.
+
+```{r}
+# Fitting logistic regression model for diabetes status among participants
+diabetes_model <- glm(diab_stat ~ EDUC + AGE + RACE + GENDER, 
+                      data = FinalProjectData4, 
+                      family = binomial)
+
+# Summary of results
+summary(diabetes_model)
+broom::tidy(diabetes_model, exponentiate = TRUE, conf.int = TRUE)
+
+```
+-Interpretation
+For those with 'High school education', the odds of having Diabetes is 1.32 times those with 'less than a high school education', while those in the 'more than a high school education' have 1.69 times higher odds than those with 'less than a high school education'
+
+Since the confidence interval does not include 1, the association is statistically significant at the 95% confidence level. This suggests that the true OR is between 1.56 to 1.64
+
+```{r}
+# Fitting logistic regression model for hypertension status 
+hypertension_model <- glm(hyprtnsn_stat ~ EDUC + AGE + RACE + GENDER, 
+                          data = FinalProjectData4, 
+                          family = binomial)
+
+#Summary of results
+summary(hypertension_model)
+broom::tidy(hypertension_model, exponentiate = TRUE,  conf.int = TRUE)
+
+```
+-Interpretation
+The odds of having Hypertension among those in the category of 'High school education' is 1.21 times greater than those with 
+'less than a high school education', while those in the 'more than high school education' have 1.54 times greater odds than those with 'less than a high school education'.
+
+Since the confidence interval does not include 1, the association is statistically significant at the 95% confidence level. This suggests that the true OR is between 1.50 to 1.58
+
+#Testing effect modification by race and gender for the outcomes
+```{r}
+# Model with interaction terms for diabetes status
+diabetes_model2 <- glm(diab_stat ~ EDUC * RACE + AGE + EDUC * GENDER, 
+                      data = FinalProjectData4, 
+                      family = binomial)
+
+# Summary of the model
+summary(diabetes_model2)
+broom::tidy(diabetes_model2, exponentiate = TRUE, conf.int = TRUE)
+```
+-Interpretations
+For Black or African Americans with a 'High school education', the odds of having DIABETES is O.86 times that of whites with 'less than a high school education'; while Black or African Americans with 'More than a High School education' have 0.67 times the odds of having DIABETES than whites with 'less than a high school education'. 
+
+For those in the 'Other' race category with a 'High school education', the odds of having DIABETES is 0.85 times that of whites with 'less than a high school education'; while those in the 'Other' race category with 'More than a High School education' have 0.68 times the odds of having DIABETES than whites with with 'less than a high school education'. 
+
+For females with a 'High school education', the odds of having DIABETES is 1.20 times that of Males with 'less than a high school education'; while females with 'More than a High School education' have 1.33 times the odds of having DIABETES than Males with 'less than a high school education'
+
+With pvalues less than 0.05 for each group, it shows that race and gender significantly modifies the association between educational level and Diabetes status. 
+
+
+```{r}
+# Model with interaction terms for hypertension status
+hypertension_model2 <- glm(hyprtnsn_stat ~ EDUC * RACE + AGE + EDUC * GENDER, 
+                          data = FinalProjectData4, 
+                          family = binomial)
+
+# Summary of the model
+summary(hypertension_model2)
+broom::tidy(hypertension_model2, exponentiate = TRUE, conf.int = TRUE)
+```
+
+For Black or African Americans with a 'High school education', the odds of having HYPERTENSION is 1.04 times that of whites with 'less than a high school education'; while Black or African Americans with 'More than a High School education' have 0.81 times the odds of having Diabetes than whites with 'less than a high school education'. 
+
+For those in the 'Other' race category with a 'High school education', the odds of having HYPERTENSION is 0.92 times that of whites with 'less than a high school education'; while those in the 'Other' race category with 'More than a High School education' have 0.82 times the odds of having HYPERTENSION than whites with with 'less than a high school education'. 
+
+For females with a 'High school education', the odds of having HYPERTENSION is 1.20 times that of Males with 'less than a high school education'; while females with 'More than a High School education' have 1.41 times the odds of having HYPERTENSION than Males with 'less than a high school education'
+
+With pvalues less than 0.05 for each group, it shows that race and gender significantly modifies the association between educational level hypertension status. 
+
+#Perform Likelihood ratio tests to compare models with and without the interaction terms to formally test for effect modification.
+```{r}
+# Perform likelihood ratio test
+anova(diabetes_model, diabetes_model2, test = "LRT")
+```
+-Interpretation
+The significant p-value which is < 0.05 indicates that adding interaction terms for race and gender significantly improves the model fit. That is, race and gender modify the relationship between education level and diabetes status.
+
+```{r}
+# Perform likelihood ratio test
+anova(hypertension_model, hypertension_model2, test = "LRT")
+```
+
+-Intepretation
+The significant p-value which is < 0.05 indicates that adding interaction terms for race and gender significantly improves the model fit. That is, race and gender modify the relationship between education level and hypertension status.
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
